@@ -1,7 +1,7 @@
 import torch
 
-def generate_urns(n_tasks=10,n_colors=4,alpha=1.0,device="cpu",seed=None):
 
+def generate_urns(n_tasks=10, n_colors=4, alpha=1.0, device="cpu", seed=None):
     """
     Generate D urns (tasks), each as a categorical distribution over `dim` colors,
     using Dirichlet sampling in PyTorch.
@@ -13,10 +13,11 @@ def generate_urns(n_tasks=10,n_colors=4,alpha=1.0,device="cpu",seed=None):
 
     if seed is not None:
         torch.manual_seed(seed)
-    
 
-    alpha_vec = torch.full(size=(n_colors,), fill_value=float(alpha), device=device) 
-    urns = torch.distributions.Dirichlet(alpha_vec).sample((n_tasks,)) #Dirichlet distribution is a prob distribution that generates prob distributions
+    alpha_vec = torch.full(size=(n_colors,), fill_value=float(alpha), device=device)
+    urns = torch.distributions.Dirichlet(alpha_vec).sample(
+        (n_tasks,)
+    )  # Dirichlet distribution is a prob distribution that generates prob distributions
     return urns  # shape: (D, dim)
 
 
@@ -40,9 +41,8 @@ perhaps the dataset can just be a massive tensor ultimately
 
 """
 
-if __name__=="main":
-
-    D=20
-    dim=4
-    example=generate_urns(n_tasks=D,n_colors=dim)
+if __name__ == "main":
+    D = 20
+    dim = 4
+    example = generate_urns(n_tasks=D, n_colors=dim)
     print(example)
