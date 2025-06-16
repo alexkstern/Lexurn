@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import count_parameters, load_model_config
-
+from torch.func import vmap 
 
 def create_causal_mask(seq_len, device=None):
     # torch.triu creates upper triangular matrix with 1s above diagonal
@@ -41,11 +41,18 @@ class MLP(nn.Module):
         self.down_proj = nn.Linear(inner_dim, d_model)
 
     def forward(self, x):
-        x = self.up_proj(x)
+        up = self.up_proj(x)
         gate = self.gate_proj(x)
-        x = self.gelu(x) * gate
+        x = self.gelu(up) * gate
         x = self.down_proj(x)
         return x
+
+    # def forward(self, x):
+    #     x = self.up_proj(x)
+    #     gate = self.gate_proj(x)
+    #     x = self.gelu(x) * gate
+    #     x = self.down_proj(x)
+    #     return x
 
 
 # will work on this after
@@ -78,7 +85,7 @@ class TransformerLayer(nn.Module):
         super().__init__()
         self.ln1 = nn.LayerNorm(d_model)
         self.attention = nn.MultiheadAttention(
-            d_model, n_heads, dropout=0.1, batch_first=True
+            d_model, n_heads, batch_first=True
         )  # would remove dropout
         self.dropout = nn.Dropout(0.1)
         self.ln2 = nn.LayerNorm(d_model)
@@ -123,15 +130,29 @@ class UrnTransformerDecoder(nn.Module):
     def forward(self, x):
         batch_size, seq_len = x.shape
 
-        # Lexical invariance: randomize token embeddings per sequence to force generalization
-        if self.lex:  # and self.training:
-            # much simpler, the same (otherwise you can do permutation imo even better)
+        # # Lexical invariance: randomize token embeddings per sequence to force generalization
+        # if self.lex:  # and self.training:
+        #     # much simpler, the same (otherwise you can do permutation imo even better)
+        #     embeddings = torch.randn(
+        #         batch_size, self.vocab_size, self.d_model, device=x.device
+        #     )
+        #     x = F.embedding(x, embeddings)
+        # else:
+        #     # Normal mode: use learned token embeddings
+        #     x = self.token_embedding(x)
+
+
+        if self.lex:
+            # 1) sample per-sequence tables
             embeddings = torch.randn(
                 batch_size, self.vocab_size, self.d_model, device=x.device
             )
-            x = F.embedding(x, embeddings)
+            # 2) batch-embed with vmap
+            x = vmap(
+                lambda emb, idx: F.embedding(idx, emb),
+                in_dims=(0, 0)
+            )(embeddings, x)
         else:
-            # Normal mode: use learned token embeddings
             x = self.token_embedding(x)
 
         pos_ids = torch.arange(seq_len, device=x.device)

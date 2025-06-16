@@ -11,7 +11,7 @@ from datetime import datetime
 
 from train import LexurnTrainer
 from evaluation import compare_models
-from dataset import create_dataloaders
+from dataloader import create_dataloaders
 from utils import load_model_config
 from generate_urns import generate_urns
 import torch.nn.functional as F
