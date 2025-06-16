@@ -5,7 +5,7 @@ Research project studying **lexical invariance in Transformer learning**. Tests 
 ## How It Works
 
 **Core Architecture:**
-- 4-layer Transformer decoder (128d, 4 heads, vocab_size=4)
+- 4-layer Transformer decoder (256d, 4 heads, vocab_size=4) ~ 4.2 M params
 - **Lexical invariance mechanism**: randomizes token embeddings per sequence when `lex=True`
 - Trains on synthetic "balls and urns" sequences with causal language modeling
 
@@ -16,12 +16,12 @@ Research project studying **lexical invariance in Transformer learning**. Tests 
 - `run_experiment.py`: End-to-end training pipeline
 - `test_generalization.py`: Fair comparison evaluation on unseen urns
 
-## Breakthrough Results ✅
+##  Results 
 
 **Lexical invariance dramatically improves generalization:**
 - Normal model: 0.54 ± 0.28 KL divergence vs in-context distribution
 - Lexical model: 0.14 ± 0.11 KL divergence (**73% improvement**)
-- Tested on identical out-of-distribution tasks for fair comparison
+- Tested on out-of-distribution tasks
 
 ## Next Steps
 
