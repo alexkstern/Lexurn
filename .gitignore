@@ -3,3 +3,5 @@ __pycache__/
 configs/
 checkpoints/
 results/
+.env
+wandb/

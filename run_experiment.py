@@ -10,11 +10,14 @@ import os
 from datetime import datetime
 
 from train import LexurnTrainer
-from evaluation import compare_models
 from dataloader import create_dataloaders
-from utils import load_model_config
+from utils import load_model_config, kl_div
 from generate_urns import generate_urns
 import torch.nn.functional as F
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 def test_new_task_generalization(
@@ -82,14 +85,6 @@ def test_new_task_generalization(
             lex_pred = F.softmax(lex_logits[0, -1, :], dim=0)  # (vocab_size,)
 
             # Compute KL divergence against ground truth
-            def kl_div(p, q, eps=1e-10):
-                """KL(p || q) where p is true, q is predicted"""
-                p = p + eps
-                q = q + eps
-                p = p / p.sum()
-                q = q / q.sum()
-                return torch.sum(p * torch.log(p / q)).item()
-
             normal_kl = kl_div(true_urn, normal_pred)
             lex_kl = kl_div(true_urn, lex_pred)
 
@@ -123,13 +118,6 @@ def test_new_task_generalization(
     improvement = normal_kl_mean - lex_kl_mean
     print(f"Improvement (Normal - Lexical):   {improvement:.4f}")
 
-    if improvement > 0.1:
-        print("→ LEXICAL INVARIANCE SIGNIFICANTLY IMPROVES GENERALIZATION")
-    elif improvement < -0.1:
-        print("→ LEXICAL INVARIANCE HURTS GENERALIZATION")
-    else:
-        print("→ LEXICAL INVARIANCE HAS MIXED EFFECT")
-
     results = {
         "normal_kl_mean": normal_kl_mean,
         "normal_kl_std": normal_kl_std,
@@ -144,12 +132,13 @@ def test_new_task_generalization(
     return results
 
 
-def run_lexurn_experiment(config_path):
+def run_single_model_experiment(config_path, shared_dataloaders=None):
     """
-    Run complete Lexurn experiment from config file.
+    Run experiment for a single model type (normal or lexical).
 
     Args:
         config_path: Path to configuration file
+        shared_dataloaders: Optional tuple of (train_loader, test_loader, test_dataset) to share between experiments
 
     Returns:
         results: Dictionary with training and evaluation results
@@ -165,11 +154,15 @@ def run_lexurn_experiment(config_path):
     n_tasks = config["dataset"]["n_tasks"]
     save_results = config["experiment"]["save_results"]
     experiment_name = config["experiment"]["config_name"]
+    model_type = config["experiment"]["model_type"]  # "normal" or "lexical"
+    
+    is_lexical = model_type == "lexical"
 
     print("=" * 80)
-    print("LEXURN EXPERIMENT: LEXICAL INVARIANCE IN TRANSFORMER LEARNING")
+    print(f"LEXURN EXPERIMENT: {model_type.upper()} MODEL")
     print("=" * 80)
     print(f"Experiment: {experiment_name}")
+    print(f"Model type: {model_type}")
     print(f"Training on: {n_tasks} task(s) with {train_steps} samples")
     print(f"Testing on: {test_steps} samples")
     print(f"Training epochs: {num_epochs}")
@@ -185,11 +178,15 @@ def run_lexurn_experiment(config_path):
     # Create timestamp for this experiment
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Create data loaders (same test set for fair comparison)
-    print("Creating datasets...")
-    train_loader, test_loader, test_dataset, _ = create_dataloaders(
-        config_path=config_path, train_steps=train_steps, test_steps=test_steps
-    )
+    # Create or use shared data loaders
+    if shared_dataloaders is not None:
+        print("Using shared datasets...")
+        train_loader, test_loader, test_dataset = shared_dataloaders
+    else:
+        print("Creating datasets...")
+        train_loader, test_loader, test_dataset, _ = create_dataloaders(
+            config_path=config_path, train_steps=train_steps, test_steps=test_steps
+        )
 
     print("Dataset info:")
     print(f"  Tasks (urns): {test_dataset.n_tasks}")
@@ -202,95 +199,110 @@ def run_lexurn_experiment(config_path):
             print(f"    Urn {i}: {urn.numpy().round(3)}")
     print()
 
-    # ========== TRAIN NORMAL MODEL ==========
-    print("PHASE 1: Training Normal Model")
+    # ========== TRAIN MODEL ==========
+    print(f"PHASE 1: Training {model_type.title()} Model")
     print("-" * 40)
 
-    normal_trainer = LexurnTrainer(config_path=config_path, lex=False)
-    normal_trainer.train(train_loader, test_loader, num_epochs=num_epochs)
+    # Extract training urns from dataset for saving in checkpoint
+    training_urns = test_dataset.urns  # Use same urns as test dataset since they're from same generation
+    
+    trainer = LexurnTrainer(config_path=config_path, lex=is_lexical, training_urns=training_urns)
+    trainer.train(train_loader, test_loader, num_epochs=num_epochs)
 
     if save_results:
         os.makedirs("checkpoints", exist_ok=True)
-        normal_model_path = f"checkpoints/normal_{experiment_name}_{timestamp}.pt"
-        normal_trainer.save_model(normal_model_path)
+        model_path = f"checkpoints/{model_type}_{experiment_name}_{timestamp}.pt"
+        trainer.save_model(model_path)
 
-    # ========== TRAIN LEXICAL INVARIANCE MODEL ==========
-    print("\nPHASE 2: Training Lexical Invariance Model")
-    print("-" * 40)
-
-    lex_trainer = LexurnTrainer(config_path=config_path, lex=True)
-    lex_trainer.train(train_loader, test_loader, num_epochs=num_epochs)
-
-    if save_results:
-        lex_model_path = f"checkpoints/lexical_{experiment_name}_{timestamp}.pt"
-        lex_trainer.save_model(lex_model_path)
-
-    # ========== EVALUATION ==========
-    print("\nPHASE 3: Model Evaluation")
-    print("-" * 40)
-
-    # Compare models on test set
-    normal_results, lex_results = compare_models(
-        normal_trainer.model,
-        lex_trainer.model,
-        test_dataset,
-        device=normal_trainer.device,
-    )
-
-    rel_div_diff = lex_results["rel_div_mean"] - normal_results["rel_div_mean"]
-
-    # ========== NEW TASK GENERALIZATION TEST ==========
-    print("\nPHASE 4: New Task Generalization Test")
-    print("-" * 40)
-
-    generalization_results = test_new_task_generalization(
-        normal_trainer.model,
-        lex_trainer.model,
-        config,
-        device=normal_trainer.device,
-        n_test_tasks=10,
-    )
+    # Skip evaluation - can be done post-hoc with test_generalization.py
 
     # Save detailed results
     results = {
         "timestamp": timestamp,
         "experiment_name": experiment_name,
+        "model_type": model_type,
         "config": config,
         "n_tasks": n_tasks,
         "train_steps": train_steps,
         "test_steps": test_steps,
         "num_epochs": num_epochs,
-        "normal_trainer": {
-            "train_losses": normal_trainer.train_losses,
-            "eval_losses": normal_trainer.eval_losses,
-            "final_loss": normal_trainer.train_losses[-1],
+        "trainer": {
+            "train_losses": trainer.train_losses,
+            "eval_losses": trainer.eval_losses,
+            "final_loss": trainer.train_losses[-1] if trainer.train_losses else None,
+            "early_stopped": trainer.early_stopped,
+            "best_eval_loss": trainer.best_eval_loss if trainer.early_stopping else None,
+            "patience_counter": trainer.patience_counter if trainer.early_stopping else None,
         },
-        "lex_trainer": {
-            "train_losses": lex_trainer.train_losses,
-            "eval_losses": lex_trainer.eval_losses,
-            "final_loss": lex_trainer.train_losses[-1],
-        },
-        "normal_evaluation": normal_results,
-        "lex_evaluation": lex_results,
-        "rel_div_difference": rel_div_diff,
-        "generalization_test": generalization_results,
     }
 
     if save_results:
         os.makedirs("results", exist_ok=True)
-        results_path = f"results/{experiment_name}_{timestamp}.pt"
+        results_path = f"results/{model_type}_{experiment_name}_{timestamp}.pt"
         torch.save(results, results_path)
         print(f"Results saved to: {results_path}")
+
+    # Finish wandb run
+    trainer.finish_wandb()
 
     return results
 
 
-def main():
-    """Run experiment from specified config file."""
-    config_path = "configs/single_task.config"
-    # config_path = "configs/multi_task.config"
-    run_lexurn_experiment(config_path)
+def run_both_models_experiment(config_normal,config_lexinv):
+    """
+    Run both normal and lexical models sequentially on the SAME dataset for fair comparison.
+    """
+    print("Running both normal and lexical models on SAME dataset...")
+    
+    # Create shared dataset ONCE for fair comparison
+    print("\n" + "=" * 100)
+    print("CREATING SHARED DATASET FOR FAIR COMPARISON")
+    print("=" * 100)
+    
+    # Use normal config to create dataset (both configs should have same dataset params anyway)
+    config = load_model_config(config_normal)
+    train_steps = config["dataset"]["n_steps"]
+    test_steps = config["evaluation"]["test_steps"]
+    
+    print(f"Creating shared dataset with {train_steps} train steps, {test_steps} test steps")
+    train_loader, test_loader, test_dataset, _ = create_dataloaders(
+        config_path=config_normal, 
+        train_steps=train_steps, 
+        test_steps=test_steps
+    )
+    
+    print(f"Shared dataset created - {test_dataset.n_tasks} task(s), {len(train_loader)} train batches")
+    shared_dataloaders = (train_loader, test_loader, test_dataset)
+    
+    # Run normal model
+    print("\n" + "=" * 100)
+    print("STARTING NORMAL MODEL EXPERIMENT (using shared dataset)")
+    print("=" * 100)
+    normal_results = run_single_model_experiment(config_normal, shared_dataloaders)
+    
+    # Run lexical model with SAME dataset
+    print("\n" + "=" * 100)
+    print("STARTING LEXICAL MODEL EXPERIMENT (using shared dataset)")
+    print("=" * 100)
+    lexical_results = run_single_model_experiment(config_lexinv, shared_dataloaders)
+    
+    print("\n" + "=" * 100)
+    print("BOTH EXPERIMENTS COMPLETED - FAIR COMPARISON ENSURED")
+    print("=" * 100)
+    print(f"Normal model results saved to: results/normal_{normal_results['experiment_name']}_{normal_results['timestamp']}.pt")
+    print(f"Lexical model results saved to: results/lexical_{lexical_results['experiment_name']}_{lexical_results['timestamp']}.pt")
+    print("Both models trained on IDENTICAL dataset for fair comparison")
+    
+    return normal_results, lexical_results
 
 
 if __name__ == "__main__":
-    main()
+    # Run normal model
+    #run_single_model_experiment("configs/single_task_normal.config")
+    
+    # Run lexical model
+    #run_single_model_experiment("configs/single_task_lexical.config")
+    path_normal="configs/single_task_normal.config"
+    path_lexinv="configs/single_task_lexical.config"
+    run_both_models_experiment(path_normal,path_lexinv)
+

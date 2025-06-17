@@ -6,14 +6,18 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
 from model import UrnTransformerDecoder
 from dataloader import create_dataloaders
 from utils import load_model_config, count_parameters
 
+# Load environment variables
+load_dotenv()
+
 
 class LexurnTrainer:
-    def __init__(self, config_path="configs/dummy.config", lex=False, device=None):
+    def __init__(self, config_path="configs/dummy.config", lex=False, device=None, training_urns=None):
         """
         Initialize trainer for Lexurn experiments.
 
@@ -24,6 +28,18 @@ class LexurnTrainer:
         """
         self.config = load_model_config(config_path)
         self.lex = lex
+        self.training_urns = training_urns
+        
+        # Early stopping parameters
+        training_config = self.config["training"]
+        self.early_stopping = training_config.get("early_stopping", False)
+        self.early_stopping_patience = training_config.get("early_stopping_patience", 10)
+        self.early_stopping_min_delta = training_config.get("early_stopping_min_delta", 1e-4)
+        
+        # Early stopping state
+        self.best_eval_loss = float('inf')
+        self.patience_counter = 0
+        self.early_stopped = False
 
         # Set device
         if device is None:
@@ -60,6 +76,22 @@ class LexurnTrainer:
         self.train_losses = []
         self.eval_losses = []
         self.step = 0
+        
+        # Initialize wandb if enabled
+        self.use_wandb = self.config["training"]["wandb"]
+        self.wandb_run = None
+        if self.use_wandb:
+            import wandb
+            self.wandb_run = wandb.init(
+                project="lexurn",
+                config={
+                    **self.config,
+                    "lex": self.lex,
+                    "model_type": "lexical" if self.lex else "normal"
+                },
+                name=f"{'lexical' if self.lex else 'normal'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            )
+            print(f"W&B initialized: {self.wandb_run.name}")
 
     def train_step(self, batch):
         """
@@ -105,6 +137,12 @@ class LexurnTrainer:
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
 
         self.optimizer.step()
+        
+        # Log to wandb if enabled (step-based)
+        if self.use_wandb:
+            self.wandb_run.log({
+                "train_loss": loss.item()
+            }, step=self.step)
 
         return loss.item()
 
@@ -177,14 +215,43 @@ class LexurnTrainer:
                 if self.step % eval_frequency == 0:
                     eval_loss = self.evaluate(test_loader)
                     self.eval_losses.append(eval_loss)
+                    
+                    # Log eval loss to wandb (step-based)
+                    if self.use_wandb:
+                        self.wandb_run.log({
+                            "eval_loss": eval_loss
+                        }, step=self.step)
 
                     print(
                         f"\nStep {self.step}: Train Loss = {loss:.4f}, Eval Loss = {eval_loss:.4f}"
                     )
+                    
+                    # Early stopping check
+                    if self.early_stopping:
+                        if eval_loss < self.best_eval_loss - self.early_stopping_min_delta:
+                            self.best_eval_loss = eval_loss
+                            self.patience_counter = 0
+                            print(f"New best eval loss: {eval_loss:.6f}")
+                        else:
+                            self.patience_counter += 1
+                            print(f"No improvement. Patience: {self.patience_counter}/{self.early_stopping_patience}")
+                            
+                            if self.patience_counter >= self.early_stopping_patience:
+                                print(f"\nEarly stopping triggered after {self.patience_counter} steps without improvement!")
+                                print(f"Best eval loss was: {self.best_eval_loss:.6f}")
+                                self.early_stopped = True
+                                return  # Exit training immediately
 
             # Record epoch loss
             avg_epoch_loss = np.mean(epoch_losses)
             self.train_losses.append(avg_epoch_loss)
+            
+            # Log epoch metrics to wandb (optional, for multi-epoch training)
+            if self.use_wandb and num_epochs > 1:
+                self.wandb_run.log({
+                    "epoch_loss": avg_epoch_loss,
+                    "epoch": epoch + 1
+                }, step=self.step)
 
             print(f"Epoch {epoch + 1} complete. Average loss: {avg_epoch_loss:.4f}")
 
@@ -198,10 +265,13 @@ class LexurnTrainer:
             "step": self.step,
             "train_losses": self.train_losses,
             "eval_losses": self.eval_losses,
+            "training_urns": self.training_urns,  # Save the urns used for training
         }
 
         torch.save(checkpoint, path)
         print(f"Model saved to {path}")
+        if self.training_urns is not None:
+            print(f"Saved {len(self.training_urns)} training urns in checkpoint")
 
     def load_model(self, path):
         """Load model checkpoint."""
@@ -240,6 +310,12 @@ class LexurnTrainer:
 
         plt.tight_layout()
         plt.show()
+    
+    def finish_wandb(self):
+        """Finish wandb run if active."""
+        if self.use_wandb and self.wandb_run is not None:
+            self.wandb_run.finish()
+            print("W&B run finished")
 
 
 def run_experiment(

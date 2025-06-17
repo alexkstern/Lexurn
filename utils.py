@@ -48,6 +48,10 @@ def load_model_config(config_path):
         "weight_decay": float(training_config["weight_decay"]),
         "warmup_steps": int(training_config["warmup_steps"]),
         "max_grad_norm": float(training_config["max_grad_norm"]),
+        "wandb": training_config.get("wandb", "False").lower() == "true",
+        "early_stopping": training_config.get("early_stopping", "False").lower() == "true",
+        "early_stopping_patience": int(training_config.get("early_stopping_patience", 10)),
+        "early_stopping_min_delta": float(training_config.get("early_stopping_min_delta", 1e-4)),
     }
 
     # Dataset parameters
@@ -71,6 +75,7 @@ def load_model_config(config_path):
     experiment_params = {
         "config_name": experiment_config["config_name"],
         "save_results": experiment_config["save_results"].lower() == "true",
+        "model_type": experiment_config.get("model_type", "normal"),
     }
 
     # System parameters
@@ -88,3 +93,22 @@ def load_model_config(config_path):
         "experiment": experiment_params,
         "system": system_params,
     }
+
+
+def kl_div(p, q, eps=1e-10):
+    """
+    Compute KL divergence KL(p || q) - how much information is lost when using q to approximate p.
+    
+    Args:
+        p: Reference distribution (true distribution)
+        q: Approximating distribution (model prediction)
+        eps: Small epsilon for numerical stability
+        
+    Returns:
+        KL divergence as a scalar
+    """
+    p = p + eps
+    q = q + eps
+    p = p / p.sum()
+    q = q / q.sum()
+    return torch.sum(p * torch.log(p / q)).item()

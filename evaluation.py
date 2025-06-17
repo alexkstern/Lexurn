@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
+from utils import kl_div
 
 
 class FrequencyPredictor:
@@ -154,18 +155,7 @@ class EvaluationMetrics:
         Returns:
             kl_div: KL divergence value
         """
-        # Add epsilon to avoid log(0)
-        p = p + epsilon
-        q = q + epsilon
-
-        # Normalize to ensure valid probability distributions
-        p = p / torch.sum(p)
-        q = q / torch.sum(q)
-
-        # Compute KL divergence
-        kl_div = torch.sum(p * torch.log(p / q))
-
-        return kl_div.item()
+        return kl_div(p, q, eps=epsilon)
 
     def relative_divergence(self, model_pred, g_pred, m_pred, epsilon=1e-10):
         """
@@ -292,13 +282,29 @@ class EvaluationMetrics:
             f"Relative divergence: {results['rel_div_mean']:.4f} ± {results['rel_div_std']:.4f}"
         )
 
-        # Interpretation
-        if results["rel_div_mean"] < 0.4:
-            print("→ Model is GENERALIZING (closer to frequency predictor)")
-        elif results["rel_div_mean"] > 0.6:
-            print("→ Model is MEMORIZING (closer to Bayesian predictor)")
-        else:
-            print("→ Model behavior is MIXED")
+
+
+def evaluate_single_model(model, test_dataset, device="cpu"):
+    """
+    Evaluate a single model on test dataset.
+
+    Args:
+        model: Trained Lexurn model
+        test_dataset: Test dataset
+        device: Computation device
+
+    Returns:
+        results: Evaluation results dictionary
+    """
+    print("=" * 60)
+    print("SINGLE MODEL EVALUATION")
+    print("=" * 60)
+
+    evaluator = EvaluationMetrics()
+    results = evaluator.evaluate_model(model, test_dataset, device)
+    evaluator.print_results(results, "Model")
+    
+    return results
 
 
 def compare_models(normal_model, lex_model, test_dataset, device="cpu"):
@@ -337,12 +343,7 @@ def compare_models(normal_model, lex_model, test_dataset, device="cpu"):
     print(f"Lexical model relative divergence: {lex_results['rel_div_mean']:.4f}")
 
     diff = lex_results["rel_div_mean"] - normal_results["rel_div_mean"]
-    if diff < -0.1:
-        print("→ Lexical invariance IMPROVES generalization significantly")
-    elif diff > 0.1:
-        print("→ Lexical invariance WORSENS generalization")
-    else:
-        print("→ Lexical invariance has MIXED effect on generalization")
+    print(f"Relative divergence difference: {diff:.4f}")
 
     return normal_results, lex_results
 
