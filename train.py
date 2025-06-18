@@ -81,6 +81,9 @@ class LexurnTrainer:
         self.use_wandb = self.config["training"]["wandb"]
         self.wandb_run = None
         if self.use_wandb:
+            # Try to set up wandb authentication with proper fallback order
+            self._setup_wandb_auth()
+            
             import wandb
             self.wandb_run = wandb.init(
                 project="lexurn",
@@ -92,6 +95,38 @@ class LexurnTrainer:
                 name=f"{'lexical' if self.lex else 'normal'}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             )
             print(f"W&B initialized: {self.wandb_run.name}")
+
+    def _setup_wandb_auth(self):
+        """
+        Set up wandb authentication with proper fallback order:
+        1. First try .env file (already loaded by load_dotenv())
+        2. Then try Google Colab userdata
+        3. Finally let wandb handle interactive login
+        """
+        import os
+        
+        # Check if WANDB_API_KEY is already set (from .env file)
+        if os.getenv('WANDB_API_KEY'):
+            print("Using wandb API key from .env file")
+            return
+        
+        # Try Google Colab userdata
+        try:
+            from google.colab import userdata
+            token = userdata.get('WANDB_API_KEY')
+            if token:
+                os.environ['WANDB_API_KEY'] = token
+                print("Using wandb API key from Google Colab userdata")
+                return
+        except ImportError:
+            # Not in Colab environment
+            pass
+        except Exception as e:
+            # Colab userdata failed
+            print(f"Could not get wandb key from Colab userdata: {e}")
+        
+        # If we get here, let wandb handle interactive login
+        print("No wandb API key found, wandb will prompt for authentication")
 
     def train_step(self, batch):
         """
