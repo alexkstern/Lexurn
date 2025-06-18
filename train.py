@@ -266,6 +266,17 @@ class LexurnTrainer:
             "train_losses": self.train_losses,
             "eval_losses": self.eval_losses,
             "training_urns": self.training_urns,  # Save the urns used for training
+            # Key model parameters for easy access without config
+            "context_len": self.config["model"]["context_len"],
+            "vocab_size": self.config["model"]["vocab_size"],
+            "d_model": self.config["model"]["d_model"],
+            "n_layers": self.config["model"]["n_layers"],
+            "n_heads": self.config["model"]["n_heads"],
+            # Key training parameters
+            "n_steps": self.config["dataset"]["n_steps"],
+            "batch_size": self.config["training"]["batch_size"],
+            "num_epochs": self.config["training"]["num_epochs"],
+            "learning_rate": self.config["training"]["learning_rate"],
         }
 
         torch.save(checkpoint, path)

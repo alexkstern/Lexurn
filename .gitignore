@@ -1,6 +1,5 @@
 CLAUDE.md
 __pycache__/
-configs/
 checkpoints/
 results/
 .env

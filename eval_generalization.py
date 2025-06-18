@@ -527,13 +527,32 @@ if __name__ == "__main__":
 
 
     #seq_80 4.2M param model
-    config_path = "configs/seq_80_4M_single_task_normal.config"
-    normal_checkpoint = "checkpoints/seq_80_4M/normal_single_task_normal_20250617_012209.pt"
-    lexical_checkpoint = "checkpoints/seq_80_4M/lexical_single_task_lexical_20250617_012740.pt"
+    #config_path = "configs/seq_80_4M_single_task_normal.config"
+    #normal_checkpoint = "checkpoints/seq_80_4M/normal_single_task_normal_20250617_012209.pt"
+    #lexical_checkpoint = "checkpoints/seq_80_4M/lexical_single_task_lexical_20250617_012740.pt"
     #Define memorizing predictor M
-    #load normal checkpoint, check the models checkpoint.urns retrieve the tensor
-    memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+    #memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
     
+    #seq_10 4.2M param model
+    #config_path = "configs/seq_10_4M_single_task_normal.config"
+    #normal_checkpoint = "checkpoints/seq_10_4M/normal_single_task_normal_20250617_093952.pt"
+    #lexical_checkpoint = "checkpoints/seq_10_4M/lexical_single_task_lexical_20250617_094308.pt"
+    #Define memorizing predictor M
+    #memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+
+    #seq_10 4.2M param model 2
+    #config_path = "configs/seq_10_4M_single_task_normal.config"
+    #normal_checkpoint = "checkpoints/seq_10_4M_2/normal_single_task_normal_20250617_113536.pt"
+    #lexical_checkpoint = "checkpoints/seq_10_4M_2/lexical_single_task_lexical_20250617_113729.pt"
+    #Define memorizing predictor M
+    #memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+
+
+    config_path = "configs/seq_180_4M_single_task_normal.config"
+    normal_checkpoint = "checkpoints/seq_180_4M/normal_single_task_normal_20250618_002754.pt"
+    lexical_checkpoint = "checkpoints/seq_180_4M/lexical_single_task_lexical_20250618_012133.pt"
+    #Define memorizing predictor M
+    memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
 
     # Test both models with identical test tasks
     normal_results, lexical_results, test_urns, test_sequences, test_urn_indices = test_both_models_fair_comparison(
