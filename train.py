@@ -99,18 +99,13 @@ class LexurnTrainer:
     def _setup_wandb_auth(self):
         """
         Set up wandb authentication with proper fallback order:
-        1. First try .env file (already loaded by load_dotenv())
-        2. Then try Google Colab userdata
+        1. First try Google Colab userdata
+        2. Then try .env file
         3. Finally let wandb handle interactive login
         """
         import os
         
-        # Check if WANDB_API_KEY is already set (from .env file)
-        if os.getenv('WANDB_API_KEY'):
-            print("Using wandb API key from .env file")
-            return
-        
-        # Try Google Colab userdata
+        # Try Google Colab userdata first
         try:
             from google.colab import userdata
             token = userdata.get('WANDB_API_KEY')
@@ -124,6 +119,11 @@ class LexurnTrainer:
         except Exception as e:
             # Colab userdata failed
             print(f"Could not get wandb key from Colab userdata: {e}")
+        
+        # Check if WANDB_API_KEY is set from .env file
+        if os.getenv('WANDB_API_KEY'):
+            print("Using wandb API key from .env file")
+            return
         
         # If we get here, let wandb handle interactive login
         print("No wandb API key found, wandb will prompt for authentication")
