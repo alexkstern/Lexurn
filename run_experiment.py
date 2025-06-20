@@ -302,7 +302,11 @@ if __name__ == "__main__":
     
     # Run lexical model
     #run_single_model_experiment("configs/single_task_lexical.config")
-    path_normal="configs/single_task_normal.config"
-    path_lexinv="configs/single_task_lexical.config"
+    #path_normal="configs/single_task_normal.config"
+    #path_lexinv="configs/single_task_lexical.config"
+    path_normal="configs/seq_30_4M_single_task_3_epochs_normal.config"
+    path_lexinv="configs/seq_30_4M_single_task_3_epochs_lexical.config"
+    
+    
     run_both_models_experiment(path_normal,path_lexinv)
 

@@ -548,11 +548,29 @@ if __name__ == "__main__":
     #memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
 
 
-    config_path = "configs/seq_180_4M_single_task_normal.config"
-    normal_checkpoint = "checkpoints/seq_180_4M/normal_single_task_normal_20250618_002754.pt"
-    lexical_checkpoint = "checkpoints/seq_180_4M/lexical_single_task_lexical_20250618_012133.pt"
+    #config_path = "configs/seq_180_4M_single_task_normal.config"
+    #normal_checkpoint = "checkpoints/seq_180_4M/normal_single_task_normal_20250618_232741.pt"
+    #lexical_checkpoint = "checkpoints/seq_180_4M/lexical_single_task_lexical_20250618_233133.pt"
+
+    #config_path = "configs/seq_180_4M_single_task_normal.config"
+    #normal_checkpoint = "checkpoints/seq_180_4M/normal_single_task_normal_20250618_232741.pt"
+    #lexical_checkpoint = "checkpoints/seq_180_4M/lexical_single_task_lexical_20250618_233133.pt"
+
     #Define memorizing predictor M
-    memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+    #memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+
+
+    config_path = "configs/seq_30_4M_single_task_3_epochs_lexical.config"
+    normal_checkpoint = "checkpoints/normal_single_task_normal_20250620_171309.pt"
+    lexical_checkpoint = "checkpoints/lexical_single_task_lexical_20250620_171629.pt"
+
+    #Define memorizing predictor M
+    #urn_1=torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+    ##urn_2= torch.tensor([0.273, 0.222, 0.5,   0.005],device=device)
+    #memorizing_dist = torch.mean(torch.stack([urn_1,urn_2]),dim=0)
+
+    memorizing_dist=torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+
 
     # Test both models with identical test tasks
     normal_results, lexical_results, test_urns, test_sequences, test_urn_indices = test_both_models_fair_comparison(
