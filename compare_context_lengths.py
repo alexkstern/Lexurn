@@ -208,6 +208,7 @@ if __name__ == "__main__":
     # List of models to compare
     #model_paths = [seq_30_checkpoint, seq_80_checkpoint]
     #config_paths = [seq_30_config, seq_80_config]
+    #test
 
     model_paths = [seq_30_4M_single_task_10_epochs_checkpoint, seq_80_checkpoint]
     config_paths = [seq_30_4M_single_task_10_epochs_config, seq_80_config]
