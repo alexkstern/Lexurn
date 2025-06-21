@@ -560,16 +560,16 @@ if __name__ == "__main__":
     #memorizing_dist = torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
 
 
-    config_path = "configs/seq_30_4M_single_task_3_epochs_lexical.config"
-    normal_checkpoint = "checkpoints/normal_single_task_normal_20250620_171309.pt"
-    lexical_checkpoint = "checkpoints/lexical_single_task_lexical_20250620_171629.pt"
+    config_path = "configs/seq_30_4M_single_task_10_epochs_lexical.config"
+    normal_checkpoint = "checkpoints/seq_30_4M_epochs_10_seed_43/normal_single_task_normal_20250620_220519.pt"
+    lexical_checkpoint = "checkpoints/seq_30_4M_epochs_10_seed_43/lexical_single_task_lexical_20250620_220652.pt"
 
     #Define memorizing predictor M
     #urn_1=torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
     ##urn_2= torch.tensor([0.273, 0.222, 0.5,   0.005],device=device)
     #memorizing_dist = torch.mean(torch.stack([urn_1,urn_2]),dim=0)
 
-    memorizing_dist=torch.tensor([0.4105, 0.3253, 0.0443, 0.2200], device=device)
+    memorizing_dist=torch.tensor([0.082, 0.074, 0.674, 0.171], device=device)
 
 
     # Test both models with identical test tasks

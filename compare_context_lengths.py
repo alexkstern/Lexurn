@@ -191,11 +191,14 @@ if __name__ == "__main__":
     
     seq_80_config = "configs/seq_80_4M_single_task_lexical.config"
     seq_80_checkpoint = "checkpoints/seq_80_4M/lexical_single_task_lexical_20250617_012740.pt"
+
+    seq_30_4M_single_task_10_epochs_config= "configs/seq_30_4M_single_task_10_epochs_lexical.config"
+    seq_30_4M_single_task_10_epochs_checkpoint= "checkpoints/seq_30_4M_epochs_10_seed_43/lexical_single_task_lexical_20250620_220652.pt"
     
     # Context lengths to evaluate
-    #context_lengths = [5,10, 15,20,25,30]  # Start with smaller test
+    context_lengths = [5,10, 15,20,25,30]  # Start with smaller test
     #context_lengths = [5,10, 15,20,25,30,35,40,45,50,55,60,65,70,75,80]  # Start with smaller test
-    context_lengths = [20,40,60,80]  # Start with smaller test
+    #context_lengths = [20,40,60,80]  # Start with smaller test
 
     device = get_device()
     
@@ -206,8 +209,8 @@ if __name__ == "__main__":
     #model_paths = [seq_30_checkpoint, seq_80_checkpoint]
     #config_paths = [seq_30_config, seq_80_config]
 
-    model_paths = [ seq_80_checkpoint]
-    config_paths = [ seq_80_config]
+    model_paths = [seq_30_4M_single_task_10_epochs_checkpoint, seq_80_checkpoint]
+    config_paths = [seq_30_4M_single_task_10_epochs_config, seq_80_config]
     
     compare_models_at_context_length(
         paths_list_models=model_paths,
