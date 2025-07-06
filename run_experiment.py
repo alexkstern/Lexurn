@@ -298,7 +298,7 @@ def run_lexurn_experiment(*,
 
 if __name__ == "__main__":
 
-    api="ce850be2d3c9db4d1a08e9d29af5b828af4abe3f"
+    api=None
     run_lexurn_experiment(
         config_path="experiment.config",
         use_wandb=True,
