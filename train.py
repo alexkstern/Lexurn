@@ -46,7 +46,7 @@ class LexurnTrainer:
         total_sym_kl = 0.0
         num_samples = 0
         
-        for batch in tqdm(dataloader, desc="Evaluating KL", leave=False, ncols=100, ascii=True):
+        for batch in tqdm(dataloader, desc="Evaluating KL", position=0, leave=True, ncols=100, ascii=True):
             if isinstance(batch, tuple):
                 sequences = batch[0].to(self.device)
             else:
@@ -83,7 +83,7 @@ class LexurnTrainer:
         total_loss = 0.0
         num_batches = 0
         
-        for batch in tqdm(train_loader, desc="Training", leave=False, ncols=100, ascii=True):
+        for batch in tqdm(train_loader, desc="Training", position=0, leave=True, ncols=100, ascii=True):
             loss = self.train_step(batch)
             total_loss += loss
             num_batches += 1
@@ -106,7 +106,7 @@ def train_model(
     
     trainer = LexurnTrainer(model, device=device, learning_rate=learning_rate)
     
-    for epoch in tqdm(range(num_epochs), desc="Epochs", ncols=100, ascii=True):
+    for epoch in tqdm(range(num_epochs), desc="Epochs", position=0, leave=True, ncols=100, ascii=True):
         print(f"Epoch {epoch+1}/{num_epochs}")
         
         # Train epoch

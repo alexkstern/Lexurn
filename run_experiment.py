@@ -83,7 +83,7 @@ def evaluate_model_kl(trainer: LexurnTrainer, dataloader: DataLoader, vocab_size
     total_sym_kl = 0.0
     num_samples = 0
     
-    for batch in tqdm(dataloader, desc="Evaluating Model KL", leave=False, ncols=100, ascii=True):
+    for batch in tqdm(dataloader, desc="Evaluating Model KL", position=0, leave=True, ncols=100, ascii=True):
         sequences = batch.to(trainer.device)
         batch_size = sequences.size(0)
         
@@ -124,7 +124,7 @@ def evaluate_val_loss(trainer: LexurnTrainer, dataloader: DataLoader):
     total_loss = 0.0
     num_batches = 0
     
-    for batch in tqdm(dataloader, desc="Evaluating Val Loss", leave=False, ncols=100, ascii=True):
+    for batch in tqdm(dataloader, desc="Evaluating Val Loss", position=0, leave=True, ncols=100, ascii=True):
         sequences = batch.to(trainer.device)
         inputs = sequences[:, :-1]
         targets = sequences[:, 1:]
@@ -228,11 +228,11 @@ def run_lexurn_experiment(*,
         
         step = 0
         try:
-            for epoch in tqdm(range(cfg["n_epochs"]), desc=f"Training {name}", ncols=100, ascii=True):
+            for epoch in tqdm(range(cfg["n_epochs"]), desc=f"Training {name}", position=0, leave=True, ncols=100, ascii=True):
                 epoch_train_loss = 0.0
                 num_batches = 0
                 
-                for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}", leave=False, ncols=100, ascii=True):
+                for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}", position=0, leave=True, ncols=100, ascii=True):
                     train_loss = trainer.train_step(batch)
                     epoch_train_loss += train_loss
                     num_batches += 1
