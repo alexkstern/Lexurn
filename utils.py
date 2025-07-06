@@ -1,114 +1,77 @@
+
+import os, importlib, getpass
+from typing import Optional
 import configparser
 import torch
 
+# ---------- helpers ----------
+def in_colab() -> bool:
+    """True if running in Colab (not just in a notebook, but also via !python)."""
+    try:
+        importlib.import_module("google.colab")
+        return True
+    except ModuleNotFoundError:
+        return False
 
-def load_config(config_path):
-    config = configparser.ConfigParser()
-    config.read(config_path)
-
-    config_dict = {}
-    for section in config.sections():
-        config_dict[section] = dict(config[section])
-
-    return config_dict
-
-
-def count_parameters(model):
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    frozen_params = total_params - trainable_params
-
-    return total_params, trainable_params, frozen_params
-
-
-def load_model_config(config_path):
+def resolve_wandb_key(
+    api_key: Optional[str] = None,
+    prompt_if_missing: bool = True,
+) -> Optional[str]:
     """
-    Load configuration and return model initialization parameters
+    Return the first non-empty WANDB key we can find.
+    Priority: CLI arg → $ENV → Colab → manual prompt (optional).
     """
-    config = load_config(config_path)
+    # 1) explicit api_key
+    if api_key:
+        return api_key
 
-    # Model architecture parameters
-    model_config = config["model"]
-    model_params = {
-        "vocab_size": int(model_config["vocab_size"]),
-        "d_model": int(model_config["d_model"]),
-        "n_layers": int(model_config["n_layers"]),
-        "n_heads": int(model_config["n_heads"]),
-        "context_len": int(model_config["context_len"]),
-        "lex": False,  # Will be overridden by trainer
-    }
+    # 2) environment variable
+    env_key = os.getenv("WANDB_API_KEY")
+    if env_key:
+        return env_key
 
-    # Training parameters
-    training_config = config["training"]
-    training_params = {
-        "learning_rate": float(training_config["learning_rate"]),
-        "batch_size": int(training_config["batch_size"]),
-        "num_epochs": int(training_config["num_epochs"]),
-        "optimizer": training_config["optimizer"],
-        "weight_decay": float(training_config["weight_decay"]),
-        "warmup_steps": int(training_config["warmup_steps"]),
-        "max_grad_norm": float(training_config["max_grad_norm"]),
-        "wandb": training_config.get("wandb", "False").lower() == "true",
-        "early_stopping": training_config.get("early_stopping", "False").lower() == "true",
-        "early_stopping_patience": int(training_config.get("early_stopping_patience", 10)),
-        "early_stopping_min_delta": float(training_config.get("early_stopping_min_delta", 1e-4)),
-    }
+    # 3) Colab secrets
+    if in_colab():
+        try:
+            from google.colab import userdata
+            colab_key = userdata.get("WANDB_API_KEY")
+            if colab_key:
+                return colab_key
+        except Exception:
+            pass  # userdata may not exist
 
-    # Dataset parameters
-    dataset_config = config["dataset"]
-    dataset_params = {
-        "n_tasks": int(dataset_config["n_tasks"]),
-        "n_steps": int(dataset_config["n_steps"]),
-        "seed": int(dataset_config["seed"]),
-    }
+    # 4) interactive prompt
+    if prompt_if_missing and os.isatty(0):          # ensure we’re in an interactive TTY
+        try:
+            entered = getpass.getpass(
+                "Enter your WANDB_API_KEY (leave blank to skip): "
+            ).strip()
+            if entered:
+                return entered
+        except (EOFError, KeyboardInterrupt):
+            pass  # user hit Ctrl-D/C
 
-    # Evaluation parameters
-    eval_config = config["evaluation"]
-    eval_params = {
-        "eval_frequency": int(eval_config["eval_frequency"]),
-        "save_frequency": int(eval_config["save_frequency"]),
-        "test_steps": int(eval_config["test_steps"]),
-    }
-
-    # Experiment parameters
-    experiment_config = config["experiment"]
-    experiment_params = {
-        "config_name": experiment_config["config_name"],
-        "save_results": experiment_config["save_results"].lower() == "true",
-        "model_type": experiment_config.get("model_type", "normal"),
-    }
-
-    # System parameters
-    system_config = config["system"]
-    device = system_config["device"]
-    if device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    system_params = {"device": device}
-
-    return {
-        "model": model_params,
-        "training": training_params,
-        "dataset": dataset_params,
-        "evaluation": eval_params,
-        "experiment": experiment_params,
-        "system": system_params,
-    }
+    # nothing found
+    return None
 
 
-def kl_div(p, q, eps=1e-10):
+def save_checkpoint(model, config, model_type, checkpoint_path, **extra_info):
     """
-    Compute KL divergence KL(p || q) - how much information is lost when using q to approximate p.
+    Save model checkpoint with configuration and additional information.
     
     Args:
-        p: Reference distribution (true distribution)
-        q: Approximating distribution (model prediction)
-        eps: Small epsilon for numerical stability
-        
-    Returns:
-        KL divergence as a scalar
+        model: PyTorch model to save
+        config: Configuration dictionary
+        model_type: String indicating model type (e.g., 'normal', 'lexical')
+        checkpoint_path: Path to save checkpoint
+        **extra_info: Additional information to save (e.g., best_val_loss, epoch, etc.)
     """
-    p = p + eps
-    q = q + eps
-    p = p / p.sum()
-    q = q / q.sum()
-    return torch.sum(p * torch.log(p / q)).item()
+    checkpoint_data = {
+        'model_state_dict': model.state_dict(),
+        'config': config,
+        'model_type': model_type,
+        **extra_info
+    }
+    
+    torch.save(checkpoint_data, checkpoint_path)
+    return checkpoint_data

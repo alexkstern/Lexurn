@@ -1,6 +1,4 @@
-torch
-numpy
-matplotlib
+torch>=2.0.0
 tqdm
-python-dotenv
+configparser
 wandb

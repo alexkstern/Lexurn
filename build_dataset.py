@@ -1,74 +1,77 @@
-# dataset_builder.py
 import torch
-from generate_urns import generate_urns
-from utils import load_config
 
 
+def generate_urns(
+    n_tasks: int = 10,
+    n_colors: int = 4,
+    alpha: float = 1.0,
+    *,
+    device: str | torch.device = "cuda",   # default to GPU
+    seed: int | None = None,
+) -> torch.Tensor:                         # (n_tasks, n_colors)
+    if seed is not None:
+        torch.manual_seed(seed)
+    alpha_vec = torch.full((n_colors,), float(alpha), device=device)
+    return torch.distributions.Dirichlet(alpha_vec).sample((n_tasks,))
+
+
+@torch.inference_mode()                   # no autograd bookkeeping
 def generate_dataset(
-    context_len=8,
-    n_tasks=32,
-    n_colors=4,
-    n_steps=10000,
-    alpha=1.0,
-    seed=None,
-    device="cpu",
+    context_len: int = 8,
+    n_tasks: int = 32,
+    n_colors: int = 4,
+    n_steps: int = 10_000,
+    alpha: float = 1.0,
+    seed: int | None = None,
+    device: str | torch.device = "cuda",
 ):
     """
-    Generates a full dataset of synthetic token sequences using D urns (tasks).
+    Vectorised GPU implementation.
 
-    Returns:
-        - dataset: Tensor of shape (n_steps, context_len), integer token IDs
-        - urns: Tensor of shape (n_tasks, n_colors), probability distributions
-        - task_ids: Tensor of shape (n_steps,), the urn index used per sample
+    Returns
+    -------
+    dataset  : (n_steps, context_len)   int64
+    urns     : (n_tasks, n_colors)      float32
+    task_ids : (n_steps,)               int64
     """
-
     if seed is not None:
         torch.manual_seed(seed)
 
-    # Step 1: Generate D urns
+    # 1. Generate the urns (Dirichlet over colours)
     urns = generate_urns(
-        n_tasks=n_tasks, n_colors=n_colors, alpha=alpha, device=device, seed=seed
+        n_tasks=n_tasks,
+        n_colors=n_colors,
+        alpha=alpha,
+        device=device,
+        seed=None,        # already handled
     )
 
-    # Step 2: Sample a dataset
-    dataset = torch.zeros((n_steps, context_len), dtype=torch.long)
-    task_ids = torch.zeros((n_steps, 1), dtype=torch.long)
+    # 2. Pick an urn for every step in one go
+    task_ids = torch.randint(0, n_tasks, (n_steps,), device=device)
 
-    for i in range(n_steps):
-        # Sample an urn index using uniform distribution
-        uniform_dist = torch.distributions.Uniform(0, n_tasks)
-        index_urn = int(uniform_dist.sample().item())  # must make it an int
-        cat_probabilities = urns[index_urn]
+    # 3. Pull the corresponding probability vectors (broadcasted indexing)
+    cat_probs = urns[task_ids]            # (n_steps, n_colors)
 
-        # Samples from a categorical distribution defined by the selected urn
-        samples = torch.distributions.Categorical(cat_probabilities).sample(
-            torch.Size([context_len])
-        )
-        # If cat_probabilities = [0.1, 0.3, 0.4, 0.2]
-        # Categorical will sample:
-        # - 0 with probability 0.1
-        # - 1 with probability 0.3
-        # - 2 with probability 0.4
-        # - 3 with probability 0.2
-        dataset[i] = samples  # Replaces the i-th row with 8 samples
-        task_ids[i] = index_urn
+    # 4. Sample context_len tokens per row in one vectorised call
+    #    torch.multinomial works row-wise when input is 2-D.
+    dataset = torch.multinomial(
+        cat_probs,
+        num_samples=context_len,
+        replacement=True,                 # with replacement per token
+    )                                      # (n_steps, context_len)
 
     return dataset, urns, task_ids
 
 
+# quick smoke-test on GPU
 if __name__ == "__main__":
-    path = "configs/dummy.config"
-    config = load_config(path)
-    dataset_dict = config["dataset"]
-
-    context_length = int(config["dataset"]["context"])
-    d_tasks = int(config["dataset"]["d_tasks"])
-    n_colors = int(config["dataset"]["n_colors"])
-
     dataset, urns, task_ids = generate_dataset(
-        n_tasks=d_tasks, context_len=context_length, n_colors=n_colors, n_steps=32
+        context_len=8,
+        n_tasks=4,
+        n_colors=4,
+        n_steps=100,
+        alpha=1.0,
+        seed=42,
+        device="cuda",
     )
-
-    print(dataset)
-    print(urns)
-    print(task_ids)
+    print(dataset.shape, urns.shape, task_ids.shape)
