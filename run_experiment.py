@@ -2,7 +2,9 @@ import os, configparser
 from pathlib import Path
 from typing import Dict
 
+
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import wandb
 from datetime import datetime
@@ -13,6 +15,7 @@ from train import LexurnTrainer
 from model import UrnTransformerDecoder
 from evaluation_functions import calculate_in_context_distribution, symmetrized_kl_div
 from utils import resolve_wandb_key, save_checkpoint
+from wandb_utils import upload_prediction_tables, collect_predictions
 
 
 def _safe_device(requested: str) -> str:
@@ -73,6 +76,61 @@ def low_entropy_dataset(n_colors: int, context_len: int):
         seq = torch.full((context_len,), color, dtype=torch.long)
         sequences.append(seq)
     return torch.stack(sequences)
+
+
+@torch.no_grad()
+def evaluate_model_kl_fast(
+    trainer: LexurnTrainer,
+    dataloader: DataLoader,
+    vocab_size: int,
+    collectors: dict | None = None,   # NEW
+    split_name: str | None = None,    # NEW
+    k_rows: int = 32                  # max rows to log per call
+) -> float:
+    """
+    Vectorised KL evaluator.  If `collectors` is provided it will store
+    up to `k_rows` example rows for the given `split_name`.
+    """
+    model, device = trainer.model, trainer.device
+    model.eval()
+
+    total_sym_kl = 0.0
+    total_samples = 0
+
+    rows_logged = 0  # to cap table size
+
+    for sequences in tqdm(dataloader, desc=f"{split_name or 'eval'} KL", ncols=100, ascii=True):
+        sequences = sequences.to(device)            # (B, L)
+        B, Lm1 = sequences.size(0), sequences.size(1) - 1
+
+        # 1) Model probs
+        logits = model(sequences[:, :-1])           # (B, L-1, V)
+        model_probs = torch.softmax(logits[:, -1], dim=-1)  # (B, V)
+
+        # 2) ICL posterior
+        ctx = sequences[:, :-1]
+        counts = F.one_hot(ctx, vocab_size).sum(1).float()
+        icl_probs = (counts + 1) / (ctx.size(1) + vocab_size)  # (B, V)
+
+        # 3) Sym KL
+        sym_kl = symmetrized_kl_div(model_probs, icl_probs)   # (B,)
+
+        total_sym_kl += sym_kl.sum().item()
+        total_samples += B
+
+        # 4) Collect rows for W&B table
+        if collectors is not None:
+            if k_rows is None or rows_logged < k_rows:
+                take = sequences.size(0) if k_rows is None else min(k_rows - rows_logged,
+                                                                     sequences.size(0))
+                collect_predictions(
+                    collectors, split_name,
+                    model_probs[:take], icl_probs[:take], sym_kl[:take]
+                )
+                rows_logged += take
+
+    model.train()
+    return total_sym_kl / total_samples
 
 
 @torch.no_grad()
@@ -240,7 +298,7 @@ def run_lexurn_experiment(*,
                     
                     if use_wandb:
                         wandb.log({"step": step, "train_loss": train_loss})
-                    
+                    """
                     # Step-based evaluation
                     if step % eval_steps == 0:
                         val_loss = evaluate_val_loss(trainer, id_loader)
@@ -280,6 +338,69 @@ def run_lexurn_experiment(*,
                             patience_counter += 1
                             if cfg["use_early_stopping"] and patience_counter >= cfg["patience"]:
                                 raise StopIteration  # Break out of both loops
+                        """
+                    # ─ inside your training loop ───────────────────────────────────────────────
+                    collectors = {}  # one dict reused across evals
+
+                    if step % eval_steps == 0:
+                        # ---------- ID ----------
+                        id_sym_kl = evaluate_model_kl_fast(
+                            trainer, id_loader, cfg["n_colors"],
+                            collectors, "id", k_rows=None
+                        )
+                        # ---------- OOD ----------
+                        ood_sym_kl = evaluate_model_kl_fast(
+                            trainer, ood_loader, cfg["n_colors"],
+                            collectors, "ood", k_rows=None
+                        )
+                        # ---------- LOW ----------
+                        low_sym_kl = evaluate_model_kl_fast(
+                            trainer, low_loader, cfg["n_colors"],
+                            collectors, "low", k_rows=None
+                        )
+
+                        # vanilla val-loss
+                        val_loss = evaluate_val_loss(trainer, id_loader)
+
+                        # ─ W&B scalars ─
+                        if use_wandb:
+                            wandb.log({
+                                "step": step, "epoch": epoch, "val_loss": val_loss,
+                                "id_symmetrized_kl_divergence": id_sym_kl,
+                                "ood_symmetrized_kl_divergence": ood_sym_kl,
+                                "lowent_symmetrized_kl_divergence": low_sym_kl
+                            })
+
+                        # ─ early stopping & checkpoint ─
+                        if val_loss < best_val_loss - cfg["min_delta"]:
+                            best_val_loss = val_loss
+                            patience_counter = 0
+
+                            save_checkpoint(
+                                model=model,
+                                config=cfg,
+                                model_type=name.lower(),
+                                checkpoint_path=checkpoint_path,
+                                best_val_loss=best_val_loss,
+                                epoch=epoch,
+                                step=step,
+                                train_loss=train_loss,
+                                id_sym_kl=id_sym_kl,
+                                ood_sym_kl=ood_sym_kl,
+                                low_sym_kl=low_sym_kl,
+                                timestamp=timestamp
+                            )
+
+                            # ───────────── upload tables ─────────────
+                            if use_wandb:
+                                upload_prediction_tables(collectors, step)
+                                collectors.clear()  # free memory
+
+                        else:
+                            patience_counter += 1
+                            if cfg["use_early_stopping"] and patience_counter >= cfg["patience"]:
+                                raise StopIteration
+
 
         except KeyboardInterrupt:
             if use_wandb:

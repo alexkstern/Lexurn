@@ -48,29 +48,19 @@ def setup_wandb_config(config_dict: dict, lex_mode: bool, train_urns: torch.Tens
             "train_urns": train_urns.tolist(),
         })
 
-def collect_predictions(collectors, split_name, sequences, predictions, targets, vocab, urn_indices=None, urns=None):
-    """Collect predictions during batched evaluation."""
-    decode = lambda t: " ".join(vocab.decode_sequence(t))
+def collect_predictions(collectors, split_name, model_probs, icl_probs, sym_kl_divs):
+    """Collect predictions during batched evaluation for KL divergence analysis."""
     
     if split_name not in collectors:
         collectors[split_name] = []
     
-    
     # Add all predictions from this batch
-    for i in range(sequences.size(0)):
-        correct = torch.equal(predictions[i], targets[i])
+    for i in range(model_probs.size(0)):
         sample_data = {
-            "input": decode(sequences[i].cpu()),
-            "predicted": decode(predictions[i].cpu()),
-            "ground_truth": decode(targets[i].cpu()),
-            "correct": correct
+            "model_prediction": model_probs[i].cpu().tolist(),
+            "bayesian_icl_solution": icl_probs[i].cpu().tolist(),
+            "symmetrized_kl_divergence": sym_kl_divs[i].item()
         }
-        
-        # Add urn information if provided
-        if urn_indices is not None and urns is not None:
-            urn_idx = urn_indices[i].item()
-            sample_data["urn_idx"] = urn_idx
-            sample_data["urn_vector"] = str(urns[urn_idx].cpu().tolist())
         
         collectors[split_name].append(sample_data)
         
@@ -79,38 +69,17 @@ def upload_prediction_tables(collectors, step: int):
     """Upload all collected predictions as W&B tables."""
     
     for split_name, samples in collectors.items():
-
-        has_urn = split_name in ("ID", "OOD")
-        
-        if has_urn:
-            columns = ["input_sequence", "predicted_ranking", "ground_truth", "correct", "urn_idx", "urn_vector"]
-        else:
-            columns = ["input_sequence", "predicted_ranking", "ground_truth", "correct"]
-            
-        table = wandb.Table(columns=columns)#, log_mode="INCREMENTAL")
+        columns = ["model_prediction", "bayesian_icl_solution", "symmetrized_kl_divergence"]
+        table = wandb.Table(columns=columns)
         
         rows_added = 0
         for sample in samples:
-            if has_urn:
-                table.add_data(
-                    sample["input"],
-                    sample["predicted"],
-                    sample["ground_truth"],
-                    sample["correct"],
-                    sample["urn_idx"],
-                    sample["urn_vector"]
-                )
-            else:
-                table.add_data(
-                    sample["input"],
-                    sample["predicted"],
-                    sample["ground_truth"],
-                    sample["correct"]
-                )
+            table.add_data(
+                sample["model_prediction"],
+                sample["bayesian_icl_solution"],
+                sample["symmetrized_kl_divergence"]
+            )
             rows_added += 1
         
-        #import pandas as pd
-
-        #print(table.get_dataframe())
-        wandb.log({f"{split_name}_predictions": table}, step=step)
+        wandb.log({f"{split_name}_kl_analysis": table}, step=step)
 
