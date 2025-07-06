@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 import wandb
 from datetime import datetime
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from build_dataset import generate_dataset
 from train import LexurnTrainer
@@ -83,7 +83,7 @@ def evaluate_model_kl(trainer: LexurnTrainer, dataloader: DataLoader, vocab_size
     total_sym_kl = 0.0
     num_samples = 0
     
-    for batch in tqdm(dataloader, desc="Evaluating Model KL", leave=False):
+    for batch in tqdm(dataloader, desc="Evaluating Model KL", leave=False, ncols=100, ascii=True):
         sequences = batch.to(trainer.device)
         batch_size = sequences.size(0)
         
@@ -124,7 +124,7 @@ def evaluate_val_loss(trainer: LexurnTrainer, dataloader: DataLoader):
     total_loss = 0.0
     num_batches = 0
     
-    for batch in tqdm(dataloader, desc="Evaluating Val Loss", leave=False):
+    for batch in tqdm(dataloader, desc="Evaluating Val Loss", leave=False, ncols=100, ascii=True):
         sequences = batch.to(trainer.device)
         inputs = sequences[:, :-1]
         targets = sequences[:, 1:]
@@ -228,11 +228,11 @@ def run_lexurn_experiment(*,
         
         step = 0
         try:
-            for epoch in tqdm(range(cfg["n_epochs"]), desc=f"Training {name}"):
+            for epoch in tqdm(range(cfg["n_epochs"]), desc=f"Training {name}", ncols=100, ascii=True):
                 epoch_train_loss = 0.0
                 num_batches = 0
                 
-                for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}", leave=False):
+                for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}", leave=False, ncols=100, ascii=True):
                     train_loss = trainer.train_step(batch)
                     epoch_train_loss += train_loss
                     num_batches += 1
@@ -305,5 +305,5 @@ if __name__ == "__main__":
         wandb_project="lexurn",
         wandb_api_key=resolve_wandb_key(api_key=api),
         train_normal=True,
-        train_lexical=True
+        train_lexical=False
     )
