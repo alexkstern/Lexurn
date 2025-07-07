@@ -1,21 +1,23 @@
 import torch
 
 
+# ----------  helpers ---------------------------------------------------------
 def generate_urns(
     n_tasks: int = 10,
     n_colors: int = 4,
     alpha: float = 1.0,
     *,
-    device: str | torch.device = "cuda",   # default to GPU
+    device: str | torch.device = "cuda",
     seed: int | None = None,
-) -> torch.Tensor:                         # (n_tasks, n_colors)
+) -> torch.Tensor:                          # (n_tasks, n_colors)
     if seed is not None:
         torch.manual_seed(seed)
     alpha_vec = torch.full((n_colors,), float(alpha), device=device)
     return torch.distributions.Dirichlet(alpha_vec).sample((n_tasks,))
 
 
-@torch.inference_mode()                   # no autograd bookkeeping
+# ----------  main API --------------------------------------------------------
+@torch.inference_mode()                     # no autograd bookkeeping
 def generate_dataset(
     context_len: int = 8,
     n_tasks: int = 32,
@@ -24,9 +26,16 @@ def generate_dataset(
     alpha: float = 1.0,
     seed: int | None = None,
     device: str | torch.device = "cuda",
+    train_on_one_sequence: bool = False,   # ← no asterisk, default False
 ):
     """
     Vectorised GPU implementation.
+
+    Added Parameters
+    ----------------
+    train_on_one_sequence : bool, default False
+        If True, a *single* sequence is sampled once and then copied
+        `n_steps` times.  All entries in `task_ids` are identical.
 
     Returns
     -------
@@ -46,25 +55,51 @@ def generate_dataset(
         seed=None,        # already handled
     )
 
+    # ------------------------------------------------------------------ #
+    #  ---------- single-sequence mode ----------                        #
+    # ------------------------------------------------------------------ #
+    if train_on_one_sequence:
+        # (a) pick one urn at random
+        single_task_id = torch.randint(0, n_tasks, (), device=device, dtype=torch.long).item()
+
+        # (b) sample ONE sequence from that urn
+        cat_probs = urns[single_task_id].unsqueeze(0)            # (1, n_colors)
+        single_seq = torch.multinomial(
+            cat_probs,
+            num_samples=context_len,
+            replacement=True,
+        )                                                         # (1, context_len)
+
+        # (c) replicate it n_steps times
+        dataset  = single_seq.repeat(n_steps, 1)                  # (n_steps, context_len)
+        task_ids = torch.full((n_steps,),
+                              single_task_id,
+                              device=device,
+                              dtype=torch.long)
+        return dataset, urns, task_ids
+
+    # ------------------------------------------------------------------ #
+    #  ---------- fully-random path (original) ----------                #
+    # ------------------------------------------------------------------ #
     # 2. Pick an urn for every step in one go
     task_ids = torch.randint(0, n_tasks, (n_steps,), device=device)
 
     # 3. Pull the corresponding probability vectors (broadcasted indexing)
-    cat_probs = urns[task_ids]            # (n_steps, n_colors)
+    cat_probs = urns[task_ids]                                    # (n_steps, n_colors)
 
     # 4. Sample context_len tokens per row in one vectorised call
-    #    torch.multinomial works row-wise when input is 2-D.
     dataset = torch.multinomial(
         cat_probs,
         num_samples=context_len,
-        replacement=True,                 # with replacement per token
-    )                                      # (n_steps, context_len)
+        replacement=True,
+    )                                                             # (n_steps, context_len)
 
     return dataset, urns, task_ids
 
 
-# quick smoke-test on GPU
+# ----------  quick smoke-test -----------------------------------------------
 if __name__ == "__main__":
+    # should print (100, 8) (4, 4) (100,) and assert pass
     dataset, urns, task_ids = generate_dataset(
         context_len=8,
         n_tasks=4,
@@ -73,5 +108,8 @@ if __name__ == "__main__":
         alpha=1.0,
         seed=42,
         device="cuda",
+        train_on_one_sequence=True,
     )
     print(dataset.shape, urns.shape, task_ids.shape)
+    assert torch.all(dataset == dataset[0])      # every row identical
+    assert torch.unique(task_ids).numel() == 1   # single task id
