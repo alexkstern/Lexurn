@@ -3,6 +3,8 @@ import os, importlib, getpass
 from typing import Optional
 import configparser
 import torch
+from pathlib import Path
+from datetime import datetime
 
 # ---------- helpers ----------
 def in_colab() -> bool:
@@ -53,6 +55,21 @@ def resolve_wandb_key(
 
     # nothing found
     return None
+
+
+def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int) -> str:
+    """Generate model name with format: normal/lexinv_configname_n_urns_X_datetime"""
+    # Extract config file name without extension
+    config_name = Path(config_path).stem
+    
+    # Model type prefix
+    model_type = "lexinv" if lex_mode else "normal"
+    
+    # Generate timestamp
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    
+    # Format: normal/lexinv_configname_n_urns_X_datetime
+    return f"{model_type}_{config_name}_n_urns_{n_tasks}_{timestamp}"
 
 
 def save_checkpoint(model, config, model_type, checkpoint_path, **extra_info):

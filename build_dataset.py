@@ -25,14 +25,24 @@ def generate_dataset(
     n_steps: int = 10_000,
     alpha: float = 1.0,
     seed: int | None = None,
+    urn_seed: int | None = None,
+    sampling_seed: int | None = None,
+    eval_mode: bool = False,
     device: str | torch.device = "cuda",
     train_on_one_sequence: bool = False,   # ← no asterisk, default False
 ):
     """
     Vectorised GPU implementation.
 
-    Added Parameters
-    ----------------
+    Parameters
+    ----------
+    seed : int | None
+        Legacy parameter for backward compatibility. If provided and 
+        urn_seed/sampling_seed are None, used for both urn generation and sampling.
+    urn_seed : int | None
+        Seed specifically for urn generation (Dirichlet sampling).
+    sampling_seed : int | None
+        Seed specifically for sequence sampling from urns.
     train_on_one_sequence : bool, default False
         If True, a *single* sequence is sampled once and then copied
         `n_steps` times.  All entries in `task_ids` are identical.
@@ -43,17 +53,24 @@ def generate_dataset(
     urns     : (n_tasks, n_colors)      float32
     task_ids : (n_steps,)               int64
     """
-    if seed is not None:
-        torch.manual_seed(seed)
-
+    # Handle seed logic for backward compatibility
+    if urn_seed is None and sampling_seed is None and seed is not None:
+        # Legacy behavior: use same seed for both
+        urn_seed = seed
+        sampling_seed = seed
+    
     # 1. Generate the urns (Dirichlet over colours)
     urns = generate_urns(
         n_tasks=n_tasks,
         n_colors=n_colors,
         alpha=alpha,
         device=device,
-        seed=None,        # already handled
+        seed=urn_seed,
     )
+    
+    # 2. Set sampling seed for sequence generation
+    if sampling_seed is not None:
+        torch.manual_seed(sampling_seed)
 
     # ------------------------------------------------------------------ #
     #  ---------- single-sequence mode ----------                        #

@@ -14,7 +14,7 @@ from build_dataset import generate_dataset
 from train import LexurnTrainer
 from model import UrnTransformerDecoder
 from evaluation_functions import calculate_in_context_distribution, symmetrized_kl_div
-from utils import resolve_wandb_key, save_checkpoint
+from utils import resolve_wandb_key, save_checkpoint, generate_model_name
 from wandb_utils import upload_prediction_tables, collect_predictions
 
 
@@ -205,10 +205,15 @@ def run_lexurn_experiment(*,
     wandb_project: str = "lexurn",
     wandb_api_key: str | None = None,
     train_normal: bool = True,
-    train_lexical: bool = True):
+    train_lexical: bool = True,
+    n_tasks: int | None = None):
 
     cfg = load_config(config_path)
     device = cfg["device"]
+
+    # Override n_tasks if provided
+    if n_tasks is not None:
+        cfg["n_tasks"] = n_tasks
 
     torch.manual_seed(cfg["seed"])
     if torch.cuda.is_available():
@@ -226,20 +231,25 @@ def run_lexurn_experiment(*,
     if not lex_modes:
         raise ValueError("At least one of train_normal/train_lexical must be True.")
 
-    # Generate datasets
+    # Generate datasets with separate urn and sampling seeds
     train_sequences, train_urns, train_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_tasks"], n_colors=cfg["n_colors"],
-        n_steps=cfg["n_train_samples"], alpha=1.0, seed=cfg["seed"]
+        n_steps=cfg["n_train_samples"], alpha=1.0, 
+        urn_seed=cfg["seed"], sampling_seed=cfg["seed"]
     )
 
+    # ID evaluation: same urns as training, different sequences
     id_sequences, _, id_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_tasks"], n_colors=cfg["n_colors"],
-        n_steps=cfg["n_test_samples"], alpha=1.0, seed=cfg["seed"] + 1000
+        n_steps=cfg["n_test_samples"], alpha=1.0, 
+        urn_seed=cfg["seed"], sampling_seed=cfg["seed"] + 1000
     )
 
+    # OOD evaluation: different urns from training
     ood_sequences, _, ood_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_urns_test"], n_colors=cfg["n_colors"],
-        n_steps=cfg["n_test_samples"], alpha=1.0, seed=cfg["seed"] + 2000
+        n_steps=cfg["n_test_samples"], alpha=1.0, 
+        urn_seed=cfg["seed"] + 2000, sampling_seed=cfg["seed"] + 2000
     )
 
     low_sequences = low_entropy_dataset(cfg["n_colors"], cfg["context_len"])
@@ -261,12 +271,12 @@ def run_lexurn_experiment(*,
     # Train models
     for lex_mode in lex_modes:
         name = "Lexical" if lex_mode else "Normal"
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        model_name = generate_model_name(config_path, lex_mode, cfg["n_tasks"])
         
         if use_wandb:
             run = wandb.init(
                 project=wandb_project,
-                name=f"{name.lower()}_{timestamp}",
+                name=model_name,
                 config={**cfg, "model_type": name.lower(), "lexical_invariance": lex_mode}
             )
 
@@ -281,7 +291,7 @@ def run_lexurn_experiment(*,
         best_val_loss = float('inf')
         patience_counter = 0
         Path("checkpoints").mkdir(exist_ok=True)
-        checkpoint_path = f"checkpoints/{name.lower()}_{timestamp}.pt"
+        checkpoint_path = f"checkpoints/{model_name}.pt"
         
         # Calculate eval steps based on epoch fraction
         eval_steps = int(int(cfg["n_train_samples"]) / int(cfg["batch_size"]) * cfg["eval_epoch_frac"])
@@ -335,7 +345,7 @@ def run_lexurn_experiment(*,
                                 id_sym_kl=id_sym_kl,
                                 ood_sym_kl=ood_sym_kl,
                                 low_sym_kl=low_sym_kl,
-                                timestamp=timestamp
+                                model_name=model_name
                             )
                         else:
                             patience_counter += 1
@@ -391,7 +401,7 @@ def run_lexurn_experiment(*,
                                 id_sym_kl=id_sym_kl,
                                 ood_sym_kl=ood_sym_kl,
                                 low_sym_kl=low_sym_kl,
-                                timestamp=timestamp
+                                model_name=model_name
                             )
 
                             # ───────────── upload tables ─────────────
@@ -423,11 +433,77 @@ def run_lexurn_experiment(*,
 if __name__ == "__main__":
 
     api=None
+    train_lexical=True
+    if train_lexical==True:
+        train_normal=False
+    else:
+        train_normal=True
+    
+    project_name="LEXURN"
+
+    """
+    #previous code
+    config_path="experiment.config"
+
     run_lexurn_experiment(
-        config_path="experiment.config",
+        config_path=config_path,
         use_wandb=True,
-        wandb_project="lexurn",
+        wandb_project=project_name,
         wandb_api_key=resolve_wandb_key(api_key=api),
-        train_normal=True,
-        train_lexical=False
+        train_normal=train_normal,
+        train_lexical=train_lexical
     )
+    """
+
+
+    # Set data diversity of n_urns=1 versus 1,4, 16, 256
+    diversity = [1, 4, 16, 256]
+
+
+    #Set size of model to small
+    #small= d_model 128, 4 layers 
+    #set data diversity of n_urns=1 versus 1,4, 16, 256
+    config_path="configs/small.config"
+    for div in diversity:
+        print(f"Training {config_path} with n_urns {div}")
+        run_lexurn_experiment(
+            config_path=config_path,
+            use_wandb=True,
+            wandb_project=project_name,
+            wandb_api_key=resolve_wandb_key(api_key=api),
+            train_normal=train_normal,
+            train_lexical=train_lexical,
+            n_tasks=div
+        )
+
+    #medium= d_model 256, 4 layers 
+    config_path="configs/medium.config"
+    #set data diversity of n_urns=1 versus 1,4, 16, 256
+    for div in diversity:
+        print(f"Training {config_path} with n_urns {div}")
+
+        run_lexurn_experiment(
+            config_path=config_path,
+            use_wandb=True,
+            wandb_project=project_name,
+            wandb_api_key=resolve_wandb_key(api_key=api),
+            train_normal=train_normal,
+            train_lexical=train_lexical,
+            n_tasks=div
+        )
+
+    #large= d_model 256, 8 layers 
+    config_path="configs/large.config"
+    #set data diversity of n_urns=1 versus 1,4, 16, 256
+    for div in diversity:
+        print(f"Training {config_path} with n_urns {div}")
+
+        run_lexurn_experiment(
+            config_path=config_path,
+            use_wandb=True,
+            wandb_project=project_name,
+            wandb_api_key=resolve_wandb_key(api_key=api),
+            train_normal=train_normal,
+            train_lexical=train_lexical,
+            n_tasks=div
+        )
