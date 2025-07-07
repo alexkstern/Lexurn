@@ -63,7 +63,15 @@ def collect_predictions(collectors, split_name, model_probs, icl_probs, sym_kl_d
         }
         
         collectors[split_name].append(sample_data)
-        
+
+def _to_str(x, precision=4):
+    """
+    Convert a list of floats to a compact string like
+    '[0.1234, 0.5032, 0.2500, 0.1234]'.
+    """
+    # x is already a Python list
+    fmt = f"{{:.{precision}f}}"
+    return "[" + ", ".join(fmt.format(v) for v in x) + "]"
 
 def upload_prediction_tables(collectors, step: int):
     """Upload all collected predictions as W&B tables."""
@@ -75,8 +83,8 @@ def upload_prediction_tables(collectors, step: int):
         rows_added = 0
         for sample in samples:
             table.add_data(
-                sample["model_prediction"],
-                sample["bayesian_icl_solution"],
+                _to_str(sample["model_prediction"]),
+                _to_str(sample["bayesian_icl_solution"]),
                 sample["symmetrized_kl_divergence"]
             )
             rows_added += 1
