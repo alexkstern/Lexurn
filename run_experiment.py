@@ -248,12 +248,15 @@ def run_lexurn_experiment(*,
     # Create dataloaders
     train_loader = DataLoader(UrnDataset(train_sequences, train_task_ids), 
                              batch_size=cfg["batch_size"], shuffle=True, drop_last=True)
+    batch_size = cfg["batch_size"] if cfg["batch_size"] > 1 else 128
+
     id_loader = DataLoader(UrnDataset(id_sequences, id_task_ids), 
-                          batch_size=cfg["batch_size"], shuffle=False)
+                        batch_size=batch_size, shuffle=False)
     ood_loader = DataLoader(UrnDataset(ood_sequences, ood_task_ids), 
-                           batch_size=cfg["batch_size"], shuffle=False)
+                            batch_size=batch_size, shuffle=False)
     low_loader = DataLoader(UrnDataset(low_sequences, low_task_ids), 
-                           batch_size=cfg["batch_size"], shuffle=False)
+                            batch_size=batch_size, shuffle=False)
+
 
     # Train models
     for lex_mode in lex_modes:
@@ -297,7 +300,7 @@ def run_lexurn_experiment(*,
                     step += 1
                     
                     if use_wandb:
-                        wandb.log({"step": step, "train_loss": train_loss})
+                        wandb.log({ "train_loss": train_loss},step=step)
                     """
                     # Step-based evaluation
                     if step % eval_steps == 0:
@@ -365,11 +368,11 @@ def run_lexurn_experiment(*,
                         # ─ W&B scalars ─
                         if use_wandb:
                             wandb.log({
-                                "step": step, "epoch": epoch, "val_loss": val_loss,
+                                "epoch": epoch, "val_loss": val_loss,
                                 "id_symmetrized_kl_divergence": id_sym_kl,
                                 "ood_symmetrized_kl_divergence": ood_sym_kl,
                                 "lowent_symmetrized_kl_divergence": low_sym_kl
-                            })
+                            },step=step)
 
                         # ─ early stopping & checkpoint ─
                         if val_loss < best_val_loss - cfg["min_delta"]:
