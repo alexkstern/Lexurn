@@ -439,9 +439,10 @@ if __name__ == "__main__":
     else:
         train_normal=True
     
-    project_name="LEXURN"
+    #project_name="LEXURN"
+    project_name="lexurn"
 
-    """
+    #"""
     #previous code
     config_path="experiment.config"
 
@@ -453,9 +454,9 @@ if __name__ == "__main__":
         train_normal=train_normal,
         train_lexical=train_lexical
     )
+    #"""
+
     """
-
-
     # Set data diversity of n_urns=1 versus 1,4, 16, 256
     diversity = [1, 4, 16, 256]
 
@@ -507,3 +508,4 @@ if __name__ == "__main__":
             train_lexical=train_lexical,
             n_tasks=div
         )
+    """
