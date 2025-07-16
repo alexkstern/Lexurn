@@ -57,7 +57,7 @@ def resolve_wandb_key(
     return None
 
 
-def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int) -> str:
+def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int, fine_tune: bool) -> str:
     """Generate model name with format: normal/lexinv_configname_n_urns_X_datetime"""
     # Extract config file name without extension
     config_name = Path(config_path).stem
@@ -69,7 +69,12 @@ def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int) -> str:
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     
     # Format: normal/lexinv_configname_n_urns_X_datetime
-    return f"{model_type}_{config_name}_n_urns_{n_tasks}_{timestamp}"
+    name = f"{model_type}_{config_name}_n_urns_{n_tasks}_{timestamp}"
+
+    if fine_tune:
+        name += "_finetune"
+        
+    return name
 
 
 def save_checkpoint(model, config, model_type, checkpoint_path, **extra_info):
