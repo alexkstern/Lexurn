@@ -236,6 +236,12 @@ def transfer_model_weights(source_model, target_model, source_lex: bool, target_
         # Lexical -> Normal: initialize token embeddings and output projection randomly
         print("Initializing token embeddings and output projection for normal mode...")
         # These will be initialized randomly by PyTorch
+    elif not source_lex and target_lex:
+        # Normal -> Lexical: don't transfer token embeddings (lexical mode doesn't use them)
+        print("Normal -> Lexical: not transferring token embeddings (lexical mode uses random per-sequence embeddings)")
+    elif source_lex and target_lex:
+        # Lexical -> Lexical: no token embeddings to transfer
+        print("Lexical -> Lexical: no token embeddings to transfer")
     
     target_model.load_state_dict(target_state)
     print(f"Transferred {transferred} parameter tensors from source model")
@@ -250,7 +256,8 @@ def run_fine_tune_experiment(*,
     wandb_api_key: str | None = None,
     target_lex: bool = False,  # Usually fine-tuning lexical->normal
     n_epochs: int | None = None,
-    learning_rate: float | None = None):
+    learning_rate: float | None = None,
+    eval_epoch_frac: float | None = None):
     """
     Fine-tune a pre-trained model from checkpoint.
     
@@ -260,6 +267,7 @@ def run_fine_tune_experiment(*,
         target_lex: Target lexical mode (False for lexical->normal fine-tuning)
         n_epochs: Override epochs for fine-tuning
         learning_rate: Override learning rate for fine-tuning
+        eval_epoch_frac: Override evaluation frequency (fraction of epoch)
     """
     
     # Load checkpoint
@@ -282,12 +290,14 @@ def run_fine_tune_experiment(*,
         cfg["n_epochs"] = n_epochs
     if learning_rate is not None:
         cfg["learning_rate"] = learning_rate
+    if eval_epoch_frac is not None:
+        cfg["eval_epoch_frac"] = eval_epoch_frac
     
     device = _safe_device(cfg["device"])
     
     # Determine source model type from checkpoint
-    source_lex = checkpoint.get('config', {}).get('lexical_invariance', False)
     model_type = checkpoint.get('model_type', 'unknown')
+    source_lex = (model_type == 'lexical')
     
     print(f"Source model: {model_type} (lexical={source_lex})")
     print(f"Target model: {'lexical' if target_lex else 'normal'} (lexical={target_lex})")
@@ -510,9 +520,9 @@ def run_training_loop(
 
 if __name__ == "__main__":
     # Example usage for fine-tuning
-    
+    api=""
     # Example 1: Fine-tune a lexical model to normal mode
-    checkpoint_path = "checkpoints/lexical_model.pt"  # Replace with your actual checkpoint
+    checkpoint_path = "results/lexinv_experiment_n_urns_1_20250716_160312.pt"  # Replace with your actual checkpoint
     
     # Option 1: Fine-tune with same config as checkpoint
     run_fine_tune_experiment(
@@ -520,8 +530,10 @@ if __name__ == "__main__":
         target_lex=False,  # Fine-tune to normal mode
         use_wandb=True,
         wandb_project="lexurn-finetune",
-        wandb_api_key=resolve_wandb_key(api_key=None),
-        n_tasks=4  # Override n_tasks if needed
+        wandb_api_key=resolve_wandb_key(api_key=api),
+        n_epochs=1,  # Reduced from 4
+        learning_rate=5e-5,  # Reduced from 1e-4
+        eval_epoch_frac=0.1  # Reduced from 0.25
     )
     
     # Option 2: Fine-tune with new config

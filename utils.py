@@ -57,7 +57,7 @@ def resolve_wandb_key(
     return None
 
 
-def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int, fine_tune: bool) -> str:
+def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int, fine_tune=None) -> str:
     """Generate model name with format: normal/lexinv_configname_n_urns_X_datetime"""
     # Extract config file name without extension
     config_name = Path(config_path).stem
@@ -73,7 +73,7 @@ def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int, fine_tun
 
     if fine_tune:
         name += "_finetune"
-        
+
     return name
 
 
