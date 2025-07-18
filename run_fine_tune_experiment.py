@@ -255,6 +255,7 @@ def run_fine_tune_experiment(*,
     wandb_project: str = "lexurn-finetune",
     wandb_api_key: str | None = None,
     target_lex: bool = False,  # Usually fine-tuning lexical->normal
+    train_backbone: bool = True,
     n_epochs: int | None = None,
     learning_rate: float | None = None,
     eval_epoch_frac: float | None = None):
@@ -329,6 +330,14 @@ def run_fine_tune_experiment(*,
     
     # Transfer weights
     target_model = transfer_model_weights(source_model, target_model, source_lex, target_lex)
+
+    if not train_backbone:
+        for name, p in target_model.named_parameters():
+            if name.startswith("token_embedding") or name.startswith("output_proj"):
+                p.requires_grad = True     # keep head trainable
+            else:
+                p.requires_grad = False    # freeze backbone
+        print("Backbone frozen; only token_embedding & output_proj will be updated.")
     
     # Clean up source model
     del source_model
@@ -533,7 +542,8 @@ if __name__ == "__main__":
         wandb_api_key=resolve_wandb_key(api_key=api),
         n_epochs=1,  # Reduced from 4
         learning_rate=5e-5,  # Reduced from 1e-4
-        eval_epoch_frac=0.1  # Reduced from 0.25
+        eval_epoch_frac=0.1,  # Reduced from 0.25
+        train_backbone=False 
     )
     
     # Option 2: Fine-tune with new config

@@ -15,8 +15,9 @@ class LexurnTrainer:
     def __init__(self, model: nn.Module, device: str = "cpu", learning_rate: float = 1e-4):
         self.model = model.to(device)
         self.device = device
-        self.optimizer = AdamW(model.parameters(), lr=learning_rate)
-        
+        #self.optimizer = AdamW(model.parameters(), lr=learning_rate)
+        trainable_params = (p for p in model.parameters() if p.requires_grad)
+        self.optimizer = AdamW(trainable_params, lr=learning_rate)  
     def train_step(self, batch: torch.Tensor) -> float:
         """Single training step with causal language modeling loss."""
         sequences = batch.to(self.device)
