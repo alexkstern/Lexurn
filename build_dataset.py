@@ -130,3 +130,16 @@ if __name__ == "__main__":
     print(dataset.shape, urns.shape, task_ids.shape)
     assert torch.all(dataset == dataset[0])      # every row identical
     assert torch.unique(task_ids).numel() == 1   # single task id
+
+    for seed in range(0,10):
+        dataset, urns, task_ids = generate_dataset(
+            context_len=8,
+            n_tasks=1,
+            n_colors=8,
+            n_steps=100,
+            alpha=1.0,
+            seed=seed,
+            device="cuda",
+            train_on_one_sequence=False,
+        )
+        print(urns)

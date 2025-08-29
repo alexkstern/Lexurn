@@ -235,21 +235,21 @@ def run_lexurn_experiment(*,
     train_sequences, train_urns, train_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_tasks"], n_colors=cfg["n_colors"],
         n_steps=cfg["n_train_samples"], alpha=1.0, 
-        urn_seed=cfg["seed"], sampling_seed=cfg["seed"]
+        urn_seed=cfg["urn_train_seed"], sampling_seed=cfg["samp_train_seed"]
     )
 
     # ID evaluation: same urns as training, different sequences
     id_sequences, _, id_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_tasks"], n_colors=cfg["n_colors"],
         n_steps=cfg["n_test_samples"], alpha=1.0, 
-        urn_seed=cfg["seed"], sampling_seed=cfg["seed"] + 1000
+        urn_seed=cfg["urn_train_seed"], sampling_seed=cfg["samp_train_seed"] + 1000
     )
 
     # OOD evaluation: different urns from training
     ood_sequences, _, ood_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_urns_test"], n_colors=cfg["n_colors"],
         n_steps=cfg["n_test_samples"], alpha=1.0, 
-        urn_seed=cfg["seed"] + 2000, sampling_seed=cfg["seed"] + 2000
+        urn_seed=cfg["urn_ood_seed"] + 2000, sampling_seed=cfg["samp_train_seed"] + 2000
     )
 
     low_sequences = low_entropy_dataset(cfg["n_colors"], cfg["context_len"])
@@ -271,7 +271,12 @@ def run_lexurn_experiment(*,
     # Train models
     for lex_mode in lex_modes:
         name = "Lexical" if lex_mode else "Normal"
-        model_name = generate_model_name(config_path, lex_mode, cfg["n_tasks"])
+        model = UrnTransformerDecoder(
+            vocab_size=cfg["n_colors"], d_model=cfg["d_model"], n_layers=cfg["n_layers"],
+            n_heads=cfg["n_heads"], context_len=cfg["context_len"], lex=lex_mode
+        ).to(device)
+        
+        model_name = generate_model_name(config_path, lex_mode, cfg["n_tasks"], cfg, model)
         
         if use_wandb:
             run = wandb.init(
@@ -279,11 +284,6 @@ def run_lexurn_experiment(*,
                 name=model_name,
                 config={**cfg, "model_type": name.lower(), "lexical_invariance": lex_mode}
             )
-
-        model = UrnTransformerDecoder(
-            vocab_size=cfg["n_colors"], d_model=cfg["d_model"], n_layers=cfg["n_layers"],
-            n_heads=cfg["n_heads"], context_len=cfg["context_len"], lex=lex_mode
-        ).to(device)
 
         trainer = LexurnTrainer(model, device=device, learning_rate=cfg["learning_rate"])
 
@@ -401,7 +401,8 @@ def run_lexurn_experiment(*,
                                 id_sym_kl=id_sym_kl,
                                 ood_sym_kl=ood_sym_kl,
                                 low_sym_kl=low_sym_kl,
-                                model_name=model_name
+                                model_name=model_name,
+                                train_urns= train_urns
                             )
 
                             # ───────────── upload tables ─────────────

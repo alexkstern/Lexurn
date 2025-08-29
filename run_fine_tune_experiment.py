@@ -546,6 +546,11 @@ if __name__ == "__main__":
         train_backbone=False 
     )
     
+    #learning_rate=5e-6,  # 0.000005 (half of current: 5e-5)
+    #learning_rate=1e-6,  # 0.000001 (10x smaller)
+    #learning_rate=5e-7,  # 0.0000005 (20x smaller)
+    #learning_rate=1e-7,  # 0.0000001 (100x smaller)
+
     # Option 2: Fine-tune with new config
     # run_fine_tune_experiment(
     #     checkpoint_path=checkpoint_path,

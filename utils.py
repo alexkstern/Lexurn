@@ -57,19 +57,33 @@ def resolve_wandb_key(
     return None
 
 
-def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int, fine_tune=None) -> str:
-    """Generate model name with format: normal/lexinv_configname_n_urns_X_datetime"""
-    # Extract config file name without extension
-    config_name = Path(config_path).stem
-    
+def count_parameters(model) -> int:
+    """Count the number of trainable parameters in a model."""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def generate_model_name(config_path: str, lex_mode: bool, n_tasks: int, config: dict, model=None, fine_tune=None) -> str:
+    """Generate model name with format: normal/lexinv_n_tasks_X_seed_Y_epochs_Z_Mparams_datetime"""
     # Model type prefix
     model_type = "lexinv" if lex_mode else "normal"
+    
+    # Get parameter count if model is provided
+    param_count_str = ""
+    if model is not None:
+        param_count = count_parameters(model)
+        # Round to nearest million
+        param_millions = round(param_count / 1_000_000)
+        param_count_str = f"_{param_millions}M"
+    
+    # Get values from config
+    urn_train_seed = config.get("urn_train_seed", config.get("seed", 42))
+    n_epochs = config.get("n_epochs", 1)
     
     # Generate timestamp
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     
-    # Format: normal/lexinv_configname_n_urns_X_datetime
-    name = f"{model_type}_{config_name}_n_urns_{n_tasks}_{timestamp}"
+    # Format: normal/lexinv_n_tasks_X_urn_seed_Y_epochs_Z_Mparams_datetime
+    name = f"{model_type}_n_tasks_{n_tasks}_urn_seed_{urn_train_seed}_epochs_{n_epochs}{param_count_str}_{timestamp}"
 
     if fine_tune:
         name += "_finetune"

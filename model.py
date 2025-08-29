@@ -9,8 +9,6 @@ def create_causal_mask(seq_len, device=None):
     mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1)
     return mask.bool()  # Convert to boolean: True = masked, False = allowed
 
-
-
 # use swiglu and no dropout ( no one used it anymore )
 class MLP(nn.Module):
     def __init__(self, d_model):
