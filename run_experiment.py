@@ -54,6 +54,11 @@ def load_config(path: str = "experiment.config") -> Dict:
         # System
         "seed":   cfg.getint("System", "seed"),
         "device": device,
+        
+        # Seeds for reproducibility
+        "urn_train_seed": cfg.getint("Dataset", "urn_train_seed"),
+        "samp_train_seed": cfg.getint("Dataset", "samp_train_seed"),
+        "urn_ood_seed": cfg.getint("Dataset", "urn_ood_seed"),
     }
 
 
@@ -246,7 +251,7 @@ def run_lexurn_experiment(*,
     )
 
     # OOD evaluation: different urns from training
-    ood_sequences, _, ood_task_ids = generate_dataset(
+    ood_sequences, ood_urns, ood_task_ids = generate_dataset(
         context_len=cfg["context_len"], n_tasks=cfg["n_urns_test"], n_colors=cfg["n_colors"],
         n_steps=cfg["n_test_samples"], alpha=1.0, 
         urn_seed=cfg["urn_ood_seed"] + 2000, sampling_seed=cfg["samp_train_seed"] + 2000
