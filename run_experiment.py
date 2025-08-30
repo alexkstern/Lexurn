@@ -287,7 +287,7 @@ def run_lexurn_experiment(*,
             run = wandb.init(
                 project=wandb_project,
                 name=model_name,
-                config={**cfg, "model_type": name.lower(), "lexical_invariance": lex_mode}
+                config={**cfg, "model_type": name.lower(), "lexical_invariance": lex_mode, "train_urns": train_urns}###
             )
 
         trainer = LexurnTrainer(model, device=device, learning_rate=cfg["learning_rate"])

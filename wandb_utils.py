@@ -40,6 +40,7 @@ def setup_wandb_config(config_dict: dict, lex_mode: bool, train_urns: torch.Tens
         
         # Lexical invariance flag
         "lexical": lex_mode,
+        
     })
     
     # Add training urns if provided

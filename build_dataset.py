@@ -131,7 +131,10 @@ if __name__ == "__main__":
     assert torch.all(dataset == dataset[0])      # every row identical
     assert torch.unique(task_ids).numel() == 1   # single task id
 
-    for seed in range(0,10):
+    torch.manual_seed(42)
+    
+
+    for seed in range(0,5):
         dataset, urns, task_ids = generate_dataset(
             context_len=8,
             n_tasks=1,
@@ -142,4 +145,5 @@ if __name__ == "__main__":
             device="cuda",
             train_on_one_sequence=False,
         )
-        print(urns)
+        print("For seed",seed," the training urn distribution was:")
+        print(urns[0].tolist())
