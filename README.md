@@ -167,19 +167,7 @@ From `requirements.txt`:
 - `configparser` 
 - `wandb`
 
-## Citation
 
-This work is inspired by:
-
-```bibtex
-@article{wurgaft2025iclstrategies,
-  title   = {In-Context Learning Strategies Emerge Rationally},
-  author  = {Wurgaft, Nir and Lubana, Ekdeep Singh and Park, Core Francisco and Tanaka, Hidenori and Reddy, Siddharth and Goodman, Noah D.},
-  journal = {arXiv preprint arXiv:2506.17859},
-  year    = {2025},
-  url     = {https://arxiv.org/abs/2506.17859}
-}
-```
 
 ## Hardware Requirements
 
