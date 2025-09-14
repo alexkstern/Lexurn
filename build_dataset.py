@@ -116,11 +116,11 @@ def generate_dataset(
 
 # ----------  quick smoke-test -----------------------------------------------
 if __name__ == "__main__":
-    # should print (100, 8) (4, 4) (100,) and assert pass
+    # Expected output: (100, 8) (4, 4) (100,)
     dataset, urns, task_ids = generate_dataset(
         context_len=8,
-        n_tasks=4,
-        n_colors=4,
+        n_tasks=1,
+        n_colors=8,
         n_steps=100,
         alpha=1.0,
         seed=42,
@@ -147,3 +147,4 @@ if __name__ == "__main__":
         )
         print("For seed",seed," the training urn distribution was:")
         print(urns[0].tolist())
+        

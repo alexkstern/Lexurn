@@ -300,7 +300,7 @@ if __name__ == "__main__":
     r_result = r(h, g, m)
     print(f"Relative distance r: {r_result}")
     assert r_result.shape == (1,), "r should return one value per batch element"
-    # r should be bounded roughly between -1 and 1 for reasonable inputs
+    # r is typically bounded between -1 and 1
     print("✓ r passed")
     
     # Test d_rel

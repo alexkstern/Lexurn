@@ -46,7 +46,7 @@ class TransformerLayer(nn.Module):
         self.ln1 = nn.LayerNorm(d_model)
         self.attention = nn.MultiheadAttention(
             d_model, n_heads, batch_first=True
-        )  # would remove dropout
+        )
         self.dropout = nn.Dropout(0.1)
         self.ln2 = nn.LayerNorm(d_model)
         self.mlp = MLP(d_model)
@@ -55,7 +55,7 @@ class TransformerLayer(nn.Module):
         # Attention block with residual
         normed = self.ln1(x)
         attn_output, _ = self.attention(normed, normed, normed, attn_mask=mask)
-        x = x + self.dropout(attn_output)  # would remove dropout
+        x = x + self.dropout(attn_output)
 
         # MLP block with residual
         normed = self.ln2(x)
@@ -78,7 +78,7 @@ class UrnTransformerDecoder(nn.Module):
         self.token_embedding = nn.Embedding(vocab_size, d_model)
         if self.lex:
             # Freeze token embeddings for lexical invariance experiments
-            self.token_embedding.weight.requires_grad = False  # not using this anyways in lex mode, remove this line
+            self.token_embedding.weight.requires_grad = False
             
 
         self.pos_embedding = nn.Embedding(context_len, d_model)
@@ -135,15 +135,16 @@ if __name__ == "__main__":
     
     # Generate test data
     sequences, urns, task_ids = generate_dataset(
-        context_len=8,
-        n_tasks=2,
-        n_colors=4,
+        context_len=128,
+        n_tasks=1,
+        n_colors=8,
         n_steps=3,
         seed=42
     )
     
     print(f"Sequences shape: {sequences.shape}")
     print(f"Urns shape: {urns.shape}")
+    print(urns)
     
     # Test 1: Normal model
     print(f"\n=== Test 1: Normal Model ===")
