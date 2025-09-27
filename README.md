@@ -1,4 +1,4 @@
-# Lexurn: Lexical Invariance in Transformer Learning
+# Lexurn: Lexinvariance for Balls and Urn (single urn)
 
 This repository contains the implementation for **Experiment 1** of my thesis research on lexical invariance in transformer models through the lens of in-context learning (ICL). The work investigates whether lexically invariant training encourages generalization in a controlled synthetic environment.
 
